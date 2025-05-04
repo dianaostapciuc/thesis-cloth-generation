@@ -1,0 +1,17 @@
+paths:
+  data_root: "C:/facultate/anu 3/tailor_data/TailorNet_dataset/data"
+  smpl_hres: "C:/facultate/anu 3/tailor_data/TailorNet_dataset/data/smpl"
+  garment_info: "C:/facultate/anu 3/tailor_data/TailorNet_dataset/data/garment_class_info.pkl"
+  output_dir: "output"
+
+garments:
+    female: [ "pant", "shirt", "skirt", "t-shirt" ]
+    male: [ "pant", "shirt", "t-shirt" ]
+
+
+training:
+  batch_size: 8
+  hidden_size: 2048
+  learning_rate: 0.0001
+  epochs: 200
+  device: "cuda:0"
