@@ -1,3 +1,5 @@
+# services/garment_service.py
+
 import os
 import os.path as osp
 import time
@@ -10,7 +12,6 @@ import torch
 import trimesh
 from scipy.spatial import cKDTree
 from trimesh.proximity import signed_distance
-from fastapi.responses import FileResponse
 
 from config.config           import config
 from train.LowFrequencyModel import LowFreqModel
@@ -20,7 +21,6 @@ from utils.mesh_utils        import save_obj
 
 _MODEL_CACHE, _SMPL_CACHE = {}, {}
 
-# ──────────────────────────────────────────────────────────────────────────
 def heal_gaps(body_v, g_v, max_gap=0.002):
     idx  = cKDTree(body_v).query(g_v)[1]
     dist = np.linalg.norm(g_v - body_v[idx], axis=1)
@@ -28,14 +28,12 @@ def heal_gaps(body_v, g_v, max_gap=0.002):
     return g_v
 
 def shrinkwrap(body_v, g_v, body_f, offset=0.003):
-    # Note: offset bumped to 3 mm
     body_m = trimesh.Trimesh(body_v, body_f, process=False)
     nrm    = body_m.vertex_normals
     idx    = cKDTree(body_v).query(g_v)[1]
     return body_v[idx] + nrm[idx] * offset, nrm[idx]
 
 def push_outside(body_v, body_f, g_v, gap=0.002):
-    # gap bumped to 2 mm
     body_m  = trimesh.Trimesh(body_v, body_f, process=False)
     sd      = signed_distance(body_m, g_v)
     inside  = sd < 0
@@ -100,8 +98,7 @@ def _get_smpl(gen):
     _SMPL_CACHE[gen] = smpl
     return smpl
 
-# ──────────────────────────────────────────────────────────────────────────
-def generate_garment(req: GarmentRequest) -> FileResponse:
+def generate_garment(req: GarmentRequest) -> str:
     t0 = time.time()
     gar, gen = req.garment, req.gender.lower()
 
@@ -143,9 +140,7 @@ def generate_garment(req: GarmentRequest) -> FileResponse:
     verts       = np.vstack([inner, outer_verts])
     faces_inner = g_faces
     faces_outer = g_faces + inner.shape[0]
-    # side‐walls omitted for brevity—they won’t leave holes since fill_holes runs next
-
-    faces = np.vstack([faces_inner, faces_outer])
+    faces       = np.vstack([faces_inner, faces_outer])
 
     # — fill any leftover holes —
     gm = trimesh.Trimesh(verts, faces, process=False)
@@ -158,8 +153,8 @@ def generate_garment(req: GarmentRequest) -> FileResponse:
     body_obj = osp.join(out, f"body_{gen}.obj")
     gar_obj  = osp.join(out, f"garment_{gar}_{gen}.obj")
 
-    save_obj(body_v,     body_f,      body_obj)
-    save_obj(final_verts, final_faces, gar_obj)
+    save_obj(body_v,      body_f,       body_obj)
+    save_obj(final_verts, final_faces,  gar_obj)
 
     zip_p = osp.join(out, f"{gar}_{gen}_meshes.zip")
     with zipfile.ZipFile(zip_p, "w", zipfile.ZIP_DEFLATED) as z:
@@ -167,4 +162,35 @@ def generate_garment(req: GarmentRequest) -> FileResponse:
         z.write(gar_obj,  osp.basename(gar_obj))
 
     print(f"[OK] {gar}/{gen} in {time.time() - t0:.2f}s")
+    return zip_p
+
+def export_skinning_json(req: GarmentRequest) -> str:
+    """
+    ZIP up and return the two precomputed skinning JSONs:
+      body_<gender>_skin.json
+      <garment>_<gender>_skin.json
+    Falls back to output_dir if skin_json_dir isn't configured.
+    """
+    gar, gen = req.garment, req.gender.lower()
+
+    # try configured JSON directory, otherwise use output_dir
+    json_dir = config.get("paths.skin_json_dir") or config.get("paths.output_dir")
+    if json_dir is None:
+        raise FileNotFoundError("No directory configured for skinning JSON exports.")
+
+    body_json    = osp.join(json_dir, f"body_{gen}_skin.json")
+    garment_json = osp.join(json_dir, f"{gar}_{gen}_skin.json")
+
+    missing = [p for p in (body_json, garment_json) if not osp.exists(p)]
+    if missing:
+        raise FileNotFoundError(f"Skinning JSON(s) not found: {missing}")
+
+    out   = config.get("paths.output_dir")
+    os.makedirs(out, exist_ok=True)
+    zip_p = osp.join(out, f"{gar}_{gen}_skin_jsons.zip")
+
+    with zipfile.ZipFile(zip_p, "w", zipfile.ZIP_DEFLATED) as z:
+        z.write(body_json,      osp.basename(body_json))
+        z.write(garment_json,   osp.basename(garment_json))
+
     return zip_p

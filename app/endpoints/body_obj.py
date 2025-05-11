@@ -1,5 +1,3 @@
-# app/endpoints/body_obj.py
-
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from typing import List
