@@ -3,9 +3,9 @@ from fastapi.responses import StreamingResponse
 from typing import List
 import os.path as osp
 
-from config.config        import config
-from utils.mesh_utils     import compute_body_obj
-from utils.streaming      import iterfile
+from config.config import config
+from utils.mesh_utils import compute_body_obj
+from utils.streaming import iterfile
 
 router = APIRouter()
 
@@ -25,6 +25,6 @@ async def compute_obj(gender: str, betas: List[float]):
         media_type="application/octet-stream",
         headers={
             "Content-Disposition": f'attachment; filename="{osp.basename(obj_path)}"',
-            "Content-Encoding":   "identity", # ensure no gzip
+            "Content-Encoding":   "identity",
         }
     )

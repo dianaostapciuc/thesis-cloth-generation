@@ -2,32 +2,27 @@ import os, os.path as osp, random, pickle
 import numpy as np
 import torch
 
-from config.config           import config
+from config.config import config
 from dataset.DatasetProcessing import MultiGarmentDataset
-from train.LowFrequencyModel   import LowFreqModel
-from train.Trainer             import Trainer
-from smpl_lib.ch_smpl          import Smpl
+from train.LowFrequencyModel import LowFreqModel
+from train.Trainer  import Trainer
+from smpl_lib.ch_smpl import Smpl
 
 
-# --------------------------------------------------------------------------- #
 def save_obj(vertices, faces, filename):
-    """Write a mesh to an OBJ file (1‑based face indices)."""
     with open(filename, "w") as f:
         for v in vertices:
             f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
         for tri in faces:
             f.write(f"f {tri[0]+1} {tri[1]+1} {tri[2]+1}\n")
 
-
-# --------------------------------------------------------------------------- #
 def main():
     BASE       = config.get("paths.data_root")
-    SMPL_BASE  = config.get("paths.smpl_hres")          # high‑res SMPL npz
-    INFO       = config.get("paths.garment_info")       # central pickle
+    SMPL_BASE  = config.get("paths.smpl_hres")
+    INFO       = config.get("paths.garment_info")
     OUT        = config.get("paths.output_dir")
     os.makedirs(OUT, exist_ok=True)
 
-    # ------------ load central garment metadata (faces & vert_indices) ------
     with open(INFO, "rb") as f:
         class_info = pickle.load(f, encoding="latin-1")
 
@@ -60,7 +55,7 @@ def main():
             if garment not in class_info:
                 print(f"[WARN] missing meta for {garment}; skipping.")
                 continue
-            g_meta = class_info[garment]        # dict with 'f' and 'vert_indices'
+            g_meta = class_info[garment]
 
             # ----------------------------------------------------------------
             # 3) build model + trainer
@@ -75,7 +70,7 @@ def main():
 
             ckpt_path = osp.join(OUT, f"model_best_{garment}_{gender}.pth")
             trainer   = Trainer(model, ds, config, model_save_path=ckpt_path)
-            trainer.train()                         # uses epochs & LR from config
+            trainer.train()
 
             # ----------------------------------------------------------------
             # 4) quick inference / OBJ export
@@ -96,7 +91,7 @@ def main():
                 smpl_model.pose[:]  = 0
                 smpl_model.trans[:] = 0
                 smpl_model._set_up()
-                body_verts = np.asarray(smpl_model.r)                   # (V_b,3)
+                body_verts = np.asarray(smpl_model.r)
 
                 # ---- correct vertex mapping --------------------------------
                 g_faces = g_meta["f"].astype(np.int32)
@@ -111,6 +106,5 @@ def main():
                 print(f"[OK] exported sample {i} for {garment}_{gender}")
 
 
-# --------------------------------------------------------------------------- #
 if __name__ == "__main__":
     main()

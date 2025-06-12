@@ -15,5 +15,5 @@ class LowFreqModel(nn.Module):
         )
 
     def forward(self, x):
-        out = self.mlp(x)  # shape (B, 3*num_verts)
+        out = self.mlp(x)
         return out.view(-1, out.shape[1] // 3, 3)
